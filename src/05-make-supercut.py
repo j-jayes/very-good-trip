@@ -1,56 +1,75 @@
 from pydub import AudioSegment
 import os
+import json
+import pandas as pd
 
-def make_supercut(filename):
+def make_supercut(filename, output_format="mp3"):
     """
     Creates a supercut by extracting segments from an audio file based on timestamps.
 
     Args:
         filename (str): The name of the audio file (without extension).
+        output_format (str): The format of the exported audio file.
 
     Raises:
         FileNotFoundError: If the MP3 file or timestamps file is not found.
+        JSONDecodeError: If the JSON file is not properly formatted.
 
     Returns:
         None
     """
-    # Rest of the code...
-def make_supercut(filename):
-    # make the mp3 filename
-    mp3_filename = "data/podcasts/" + filename + ".mp3"
-    
-    # Check if the mp3 file exists
+    mp3_filename = f"data/podcasts/{filename}.mp3"
     if not os.path.exists(mp3_filename):
         raise FileNotFoundError(f"MP3 file '{mp3_filename}' not found.")
 
-    # Load the audio
     audio = AudioSegment.from_file(mp3_filename)
 
-    # Load the timestamps
-    timestamps_filename = "data/timestamps/" + filename + ".json"
-    with open(timestamps_filename, 'r') as file:
-        phrases = eval(file.read())
+    timestamps_filename = f"data/timestamps_sentences/{filename}.json"
+    if not os.path.exists(timestamps_filename):
+        raise FileNotFoundError(f"Timestamps file '{timestamps_filename}' not found.")
 
-    # Extract segments
-    very_good_segments = []
-    for phrase in phrases:
-        start_ms = int(phrase['start'] * 1000)
-        end_ms = int(phrase['end'] * 1000)
-        segment = audio[start_ms:end_ms]
-        very_good_segments.append(segment)
+    try:
+        with open(timestamps_filename, 'r') as file:
+            phrases = json.load(file)
+            
+        if not phrases:
+            print(f"Skipping {filename} as it doesn't have any timestamps.")
+            return
+    except json.JSONDecodeError as e:
+        raise e
 
-    # Concatenate all segments
-    supercut = very_good_segments[0]
-    for segment in very_good_segments[1:]:
-        supercut += segment
+    very_good_segments = [audio[int(phrase['start'] * 1000):int(phrase['end'] * 1000)] for phrase in phrases]
 
-    # Export the supercut
-    # Ensure the directory exists at "data/supercuts_by_episode/"
+    supercut = sum(very_good_segments, AudioSegment.silent(duration=0))
+
     supercuts_dir = "data/supercuts_by_episode/"
     os.makedirs(supercuts_dir, exist_ok=True)
-    output_filename = supercuts_dir + filename + ".mp3"
-    supercut.export(output_filename, format="mp3")
+    output_filename = f"{supercuts_dir}{filename}.{output_format}"
+    supercut.export(output_filename, format=output_format)
     print(f"Exported supercut to {output_filename}")
 
-# Example usage
-make_supercut("192. What David Cameron\u2019s return means for Israel-Gaza")
+
+
+# read in the episode titles
+with open("data/metadata/episodes.json", 'r') as file:
+    episodes_data = json.load(file)
+
+# create a DataFrame
+df_episodes = pd.DataFrame(episodes_data)
+
+output_dir = "data/supercuts_by_episode"
+# ensure the directory exists
+os.makedirs(output_dir, exist_ok=True)
+
+# loop through the episodes using title
+for title in df_episodes['title']:
+    try:
+        output_filename = f"{output_dir}/{title}.mp3"
+        if os.path.exists(output_filename):
+            print(f"Skipping {title} as it already exists in the output directory.")
+            continue
+        make_supercut(title)
+    except FileNotFoundError:
+        print(f"Skipping {title} as it doesn't have a timestamps file.")
+    except Exception as e:
+        print(f"Error processing {title}: {e}")

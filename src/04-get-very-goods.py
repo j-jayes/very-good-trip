@@ -43,7 +43,7 @@ def process_transcripts():
     for episode in episodes_data:
         title = episode['title']
         file_path = title + ".json"
-        output_file_path = os.path.join("data/timestamps", os.path.basename(file_path).replace(".json", "_timestamps.json"))
+        output_file_path = os.path.join("data/timestamps", os.path.basename(file_path))
         if os.path.exists(output_file_path):
             print(f"Skipping {title} as it already exists in data/timestamps")
             continue
